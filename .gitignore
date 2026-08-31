@@ -1,0 +1,41 @@
+## .NET / Visual Studio
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+[Bb]in/
+[Oo]bj/
+
+## Rider / VS
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*_i.c
+*_p.c
+*.rsuser
+*.userosscache
+*.sln.docstates
+
+## Resultados de test
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+
+## Secretos / configuracion local
+# User Secrets viven fuera del repo (%APPDATA%\Microsoft\UserSecrets); no hace falta ignorarlos aca.
+appsettings.*.local.json
+appsettings.Local.json
+secrets.json
+*.pfx
+
+## SO
+.DS_Store
+Thumbs.db

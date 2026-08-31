@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>RiesgoWebEmpresarial</RootNamespace>
+    <AssemblyName>RiesgoWebEmpresarial</AssemblyName>
+    <!-- Id para 'dotnet user-secrets' (la API key nunca va en el repo) -->
+    <UserSecretsId>riesgo-web-empresarial-5f2c1b9a-secrets</UserSecretsId>
+    <!-- La Responses API del SDK oficial de OpenAI todavia es experimental -->
+    <NoWarn>$(NoWarn);OPENAI001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenAI" Version="2.1.0" />
+    <PackageReference Include="UglyToad.PdfPig" Version="0.1.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

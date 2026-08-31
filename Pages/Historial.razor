@@ -1,0 +1,85 @@
+@page "/historial"
+@inject IAnalisisService AnalisisSvc
+@inject IInstructivoService InstructivoSvc
+
+<PageTitle>Historial — Riesgo Web Empresarial</PageTitle>
+
+<h1>Historial de análisis</h1>
+
+<div class="panel">
+    @if (_analisis.Count == 0)
+    {
+        <p class="muted">Todavía no se corrió ningún análisis.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Archivo</th>
+                    <th>CUIT</th>
+                    <th>Razón social</th>
+                    <th>Instructivo</th>
+                    <th>Estado</th>
+                    <th>Severidad</th>
+                    <th>Hallazgos</th>
+                    <th>Usuario</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in _analisis)
+                {
+                    <tr>
+                        <td class="mono">@a.FechaSolicitud.ToLocalTime().ToString("g")</td>
+                        <td>@a.NombreArchivoOriginal</td>
+                        <td class="mono">@(string.IsNullOrEmpty(a.Cuit) ? "—" : a.Cuit)</td>
+                        <td>@(string.IsNullOrEmpty(a.RazonSocial) ? "—" : a.RazonSocial)</td>
+                        <td>@NombreInstructivo(a.InstructivoId)</td>
+                        <td><span class="badge estado">@a.EstadoAnalisis</span></td>
+                        <td>
+                            @if (a.EstadoAnalisis == EstadoAnalisis.Completo)
+                            {
+                                <span class="badge @SevClase(a.SeveridadGeneral)">@a.SeveridadGeneral</span>
+                            }
+                            else
+                            {
+                                <span class="muted">—</span>
+                            }
+                        </td>
+                        <td>@(a.EstadoAnalisis == EstadoAnalisis.Completo ? a.Hallazgos.Count.ToString() : "—")</td>
+                        <td>@a.UsuarioSolicitante</td>
+                    </tr>
+                    @if (a.EstadoAnalisis == EstadoAnalisis.Error && a.MensajeError is not null)
+                    {
+                        <tr>
+                            <td colspan="9" class="msg-error">@a.MensajeError</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<Analisis> _analisis = Array.Empty<Analisis>();
+
+    protected override void OnInitialized()
+    {
+        _analisis = AnalisisSvc.ObtenerTodos();
+    }
+
+    private string NombreInstructivo(Guid id)
+    {
+        var i = InstructivoSvc.ObtenerPorId(id);
+        return i is null ? "(eliminado)" : $"{i.Nombre} v{i.Version}";
+    }
+
+    private static string SevClase(SeveridadGeneral s) => s switch
+    {
+        SeveridadGeneral.Elevado => "elevado",
+        SeveridadGeneral.Moderado => "moderado",
+        _ => "sinhallazgos"
+    };
+}

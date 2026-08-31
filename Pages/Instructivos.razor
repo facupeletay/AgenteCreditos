@@ -1,0 +1,195 @@
+@page "/instructivos"
+@inject IInstructivoService InstructivoSvc
+
+<PageTitle>Instructivos — Riesgo Web Empresarial</PageTitle>
+
+<h1>Instructivos</h1>
+
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Versión</th>
+                <th>Deriva de</th>
+                <th>Creado por</th>
+                <th>Fecha</th>
+                <th>Activo</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var i in _instructivos)
+            {
+                <tr>
+                    <td>@i.Nombre @(i.EsOriginal ? "(original)" : "")</td>
+                    <td>v@(i.Version)</td>
+                    <td class="mono">@(i.InstructivoPadreId is null ? "—" : NombreCorto(i.InstructivoPadreId.Value))</td>
+                    <td>@i.CreadoPor</td>
+                    <td class="mono">@i.FechaCreacion.ToLocalTime().ToString("g")</td>
+                    <td>
+                        <input type="checkbox" checked="@i.Activo"
+                               @onchange="e => ToggleActivo(i.InstructivoId, (bool)e.Value!)" />
+                    </td>
+                    <td>
+                        <button class="btn secundario" @onclick="() => PrepararBifurcacion(i)">Bifurcar</button>
+                    </td>
+                </tr>
+                @if (_verContenidoId == i.InstructivoId)
+                {
+                    <tr>
+                        <td colspan="7">
+                            <pre class="mono">@i.ContenidoPrompt</pre>
+                            @if (!string.IsNullOrWhiteSpace(i.Notas))
+                            {
+                                <p class="muted"><strong>Notas:</strong> @i.Notas</p>
+                            }
+                        </td>
+                    </tr>
+                }
+                <tr>
+                    <td colspan="7">
+                        <a href="javascript:void(0)" @onclick="() => ToggleVerContenido(i.InstructivoId)">
+                            @(_verContenidoId == i.InstructivoId ? "Ocultar contenido" : "Ver contenido")
+                        </a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="panel">
+    <h2>@(_modoBifurcar ? "Bifurcar instructivo" : "Nuevo instructivo original")</h2>
+
+    @if (_modoBifurcar && _padre is not null)
+    {
+        <p class="muted">
+            Deriva de <span class="mono">@_padre.Nombre v@(_padre.Version)</span>
+            <span class="mono">(@_padre.InstructivoId)</span>.
+            Se guardará como <strong>v@(_padre.Version + 1)</strong> o superior.
+        </p>
+    }
+
+    <div class="field">
+        <label for="nombre">Nombre</label>
+        <input id="nombre" type="text" @bind="_nombre" />
+    </div>
+
+    <div class="field">
+        <label for="creadoPor">Creado por</label>
+        <input id="creadoPor" type="text" @bind="_creadoPor" />
+    </div>
+
+    <div class="field">
+        <label for="contenido">Contenido del prompt</label>
+        <textarea id="contenido" @bind="_contenido"></textarea>
+    </div>
+
+    <div class="field">
+        <label for="notas">Notas (qué cambia respecto del padre, por qué)</label>
+        <input id="notas" type="text" @bind="_notas" />
+    </div>
+
+    <button class="btn" @onclick="Guardar">
+        @(_modoBifurcar ? "Guardar nueva versión" : "Crear instructivo")
+    </button>
+    @if (_modoBifurcar)
+    {
+        <button class="btn secundario" @onclick="CancelarBifurcacion">Cancelar</button>
+    }
+
+    @if (_mensaje is not null)
+    {
+        <p class="msg-ok">@_mensaje</p>
+    }
+    @if (_error is not null)
+    {
+        <p class="msg-error">@_error</p>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<Instructivo> _instructivos = Array.Empty<Instructivo>();
+
+    private bool _modoBifurcar;
+    private Instructivo? _padre;
+    private Guid? _verContenidoId;
+
+    private string _nombre = "";
+    private string _creadoPor = "demo";
+    private string _contenido = "";
+    private string _notas = "";
+
+    private string? _mensaje;
+    private string? _error;
+
+    protected override void OnInitialized() => Recargar();
+
+    private void Recargar() => _instructivos = InstructivoSvc.ObtenerTodos();
+
+    private string NombreCorto(Guid id)
+    {
+        var i = InstructivoSvc.ObtenerPorId(id);
+        return i is null ? id.ToString() : $"{i.Nombre} v{i.Version}";
+    }
+
+    private void ToggleVerContenido(Guid id) =>
+        _verContenidoId = _verContenidoId == id ? null : id;
+
+    private void PrepararBifurcacion(Instructivo padre)
+    {
+        _modoBifurcar = true;
+        _padre = padre;
+        _nombre = padre.Nombre;
+        _contenido = padre.ContenidoPrompt; // precarga el contenido del padre para editarlo
+        _notas = "";
+        _mensaje = null;
+        _error = null;
+    }
+
+    private void CancelarBifurcacion()
+    {
+        _modoBifurcar = false;
+        _padre = null;
+        _nombre = "";
+        _contenido = "";
+        _notas = "";
+    }
+
+    private void Guardar()
+    {
+        _mensaje = null;
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(_nombre)) { _error = "El nombre es obligatorio."; return; }
+        if (string.IsNullOrWhiteSpace(_contenido)) { _error = "El contenido del prompt es obligatorio."; return; }
+
+        try
+        {
+            if (_modoBifurcar && _padre is not null)
+            {
+                var hijo = InstructivoSvc.Bifurcar(_padre.InstructivoId, _contenido, _creadoPor, _notas, _nombre);
+                _mensaje = $"Creado «{hijo.Nombre}» v{hijo.Version} (deriva de {_padre.InstructivoId}).";
+                CancelarBifurcacion();
+            }
+            else
+            {
+                var nuevo = InstructivoSvc.CrearOriginal(_nombre, _contenido, _creadoPor, _notas);
+                _mensaje = $"Creado instructivo original «{nuevo.Nombre}» v{nuevo.Version}.";
+                _nombre = ""; _contenido = ""; _notas = "";
+            }
+            Recargar();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void ToggleActivo(Guid id, bool activo)
+    {
+        InstructivoSvc.SetActivo(id, activo);
+        Recargar();
+    }
+}

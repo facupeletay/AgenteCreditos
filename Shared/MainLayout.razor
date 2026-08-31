@@ -1,0 +1,19 @@
+@inherits LayoutComponentBase
+
+<div class="app-shell">
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-dot"></span>
+            Riesgo Web Empresarial
+        </div>
+        <nav class="nav">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Analizar</NavLink>
+            <NavLink class="nav-link" href="historial">Historial</NavLink>
+            <NavLink class="nav-link" href="instructivos">Instructivos</NavLink>
+        </nav>
+    </header>
+
+    <main class="content">
+        @Body
+    </main>
+</div>

@@ -1,0 +1,226 @@
+@page "/"
+@implements IDisposable
+@inject IInstructivoService InstructivoSvc
+@inject IAnalisisService AnalisisSvc
+
+<PageTitle>Analizar — Riesgo Web Empresarial</PageTitle>
+
+<h1>Analizar scorecard</h1>
+
+<div class="panel">
+    <div class="field">
+        <label for="instructivo">Instructivo</label>
+        <select id="instructivo" @bind="_instructivoSeleccionado">
+            @foreach (var i in _instructivos)
+            {
+                <option value="@i.InstructivoId">@i.Nombre — v@(i.Version)@(i.EsOriginal ? " (original)" : "")</option>
+            }
+        </select>
+        @if (_instructivos.Count == 0)
+        {
+            <p class="msg-error">No hay instructivos activos. Crea uno en la pestaña «Instructivos».</p>
+        }
+    </div>
+
+    <div class="field">
+        <label for="pdf">Scorecard enriquecido (PDF)</label>
+        <InputFile id="pdf" OnChange="ArchivoSeleccionado" accept=".pdf" />
+        @if (_archivo is not null)
+        {
+            <p class="muted mono">@_archivo.Name — @((_archivo.Size / 1024.0).ToString("N0")) KB</p>
+        }
+    </div>
+
+    <div class="field">
+        <label for="usuario">Usuario solicitante</label>
+        <input id="usuario" type="text" @bind="_usuario" />
+    </div>
+
+    <button class="btn" @onclick="Analizar" disabled="@(_procesando || _instructivos.Count == 0)">
+        @if (_procesando) { <span class="spinner"></span> }
+        Analizar
+    </button>
+
+    @if (_errorUi is not null)
+    {
+        <p class="msg-error">@_errorUi</p>
+    }
+</div>
+
+@if (_analisis is not null)
+{
+    <div class="panel">
+        <h2>
+            Veredicto
+            <span class="badge estado">@_analisis.EstadoAnalisis</span>
+        </h2>
+
+        @switch (_analisis.EstadoAnalisis)
+        {
+            case EstadoAnalisis.Pendiente:
+            case EstadoAnalisis.Procesando:
+                <p><span class="spinner"></span> Analizando… (consulta automática cada 3 s)</p>
+                <p class="muted mono">
+                    CUIT: @(string.IsNullOrEmpty(_analisis.Cuit) ? "—" : _analisis.Cuit) ·
+                    Razón social: @(string.IsNullOrEmpty(_analisis.RazonSocial) ? "—" : _analisis.RazonSocial)
+                </p>
+                break;
+
+            case EstadoAnalisis.Error:
+                <p class="msg-error">Error: @_analisis.MensajeError</p>
+                break;
+
+            case EstadoAnalisis.Completo:
+                <p>
+                    <strong>Empresa analizada:</strong>
+                    @(string.IsNullOrWhiteSpace(_analisis.EmpresaAnalizada) ? _analisis.RazonSocial : _analisis.EmpresaAnalizada)
+                    <span class="mono muted">(@_analisis.Cuit)</span>
+                </p>
+
+                <p>
+                    <strong>Severidad general:</strong>
+                    <span class="badge @SeveridadGeneralClase(_analisis.SeveridadGeneral)">@_analisis.SeveridadGeneral</span>
+                </p>
+
+                @if (_analisis.EmpresasVinculadas.Count > 0)
+                {
+                    <p><strong>Empresas vinculadas relevantes:</strong></p>
+                    <div class="pill-list">
+                        @foreach (var e in _analisis.EmpresasVinculadas)
+                        {
+                            <span class="pill">@e</span>
+                        }
+                    </div>
+                }
+
+                <h2>Hallazgos (@_analisis.Hallazgos.Count)</h2>
+                @if (_analisis.Hallazgos.Count == 0)
+                {
+                    <p class="msg-ok">Sin hallazgos de riesgo relevantes.</p>
+                }
+                else
+                {
+                    @foreach (var h in _analisis.Hallazgos)
+                    {
+                        <div class="hallazgo @h.Severidad.ToString().ToLower()">
+                            <div>
+                                <span class="badge @h.Severidad.ToString().ToLower()">@h.Severidad</span>
+                                @if (h.EmpresaVinculada is not null)
+                                {
+                                    <span class="pill">@h.EmpresaVinculada</span>
+                                }
+                            </div>
+                            <div>@h.Descripcion</div>
+                            <div class="meta">
+                                <strong>Fuente:</strong> @h.Fuente<br />
+                                <strong>Impacto crediticio:</strong> @h.ImpactoCrediticio
+                            </div>
+                        </div>
+                    }
+                }
+
+                <h2>Conclusión ejecutiva</h2>
+                <p>@_analisis.ConclusionEjecutiva</p>
+
+                <p class="muted mono">
+                    Solicitado: @_analisis.FechaSolicitud.ToLocalTime().ToString("g") ·
+                    Respondido: @(_analisis.FechaRespuesta?.ToLocalTime().ToString("g") ?? "—")
+                </p>
+                break;
+        }
+    </div>
+}
+
+@code {
+    private List<Instructivo> _instructivos = new();
+    private Guid _instructivoSeleccionado;
+    private IBrowserFile? _archivo;
+    private string _usuario = "demo";
+    private Analisis? _analisis;
+    private System.Timers.Timer? _timer;
+    private string? _errorUi;
+    private bool _procesando;
+
+    private const long MaxPdfBytes = 20L * 1024 * 1024; // 20 MB
+
+    protected override void OnInitialized()
+    {
+        _instructivos = InstructivoSvc.ObtenerActivos().ToList();
+        _instructivoSeleccionado = _instructivos.FirstOrDefault()?.InstructivoId ?? Guid.Empty;
+    }
+
+    private void ArchivoSeleccionado(InputFileChangeEventArgs e)
+    {
+        _archivo = e.File;
+        _errorUi = null;
+    }
+
+    private async Task Analizar()
+    {
+        _errorUi = null;
+
+        if (_archivo is null) { _errorUi = "Subí un PDF primero."; return; }
+        if (_instructivoSeleccionado == Guid.Empty) { _errorUi = "Elegí un instructivo."; return; }
+
+        byte[] bytes;
+        try
+        {
+            _procesando = true;
+            using var ms = new MemoryStream();
+            await _archivo.OpenReadStream(MaxPdfBytes).CopyToAsync(ms);
+            bytes = ms.ToArray();
+        }
+        catch (Exception ex)
+        {
+            _errorUi = $"No se pudo leer el archivo: {ex.Message}";
+            _procesando = false;
+            return;
+        }
+
+        _analisis = AnalisisSvc.IniciarAnalisis(bytes, _archivo.Name, _instructivoSeleccionado, _usuario);
+        _procesando = false;
+        IniciarPolling();
+    }
+
+    private void IniciarPolling()
+    {
+        DetenerTimer();
+        _timer = new System.Timers.Timer(3000) { AutoReset = true };
+        _timer.Elapsed += async (_, _) => await Refrescar();
+        _timer.Start();
+    }
+
+    private async Task Refrescar()
+    {
+        if (_analisis is null) return;
+
+        var actual = AnalisisSvc.ObtenerPorId(_analisis.AnalisisId);
+        if (actual is null) return;
+
+        _analisis = actual;
+
+        if (actual.EstadoAnalisis is EstadoAnalisis.Completo or EstadoAnalisis.Error)
+        {
+            DetenerTimer();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void DetenerTimer()
+    {
+        if (_timer is null) return;
+        _timer.Stop();
+        _timer.Dispose();
+        _timer = null;
+    }
+
+    private static string SeveridadGeneralClase(SeveridadGeneral s) => s switch
+    {
+        SeveridadGeneral.Elevado => "elevado",
+        SeveridadGeneral.Moderado => "moderado",
+        _ => "sinhallazgos"
+    };
+
+    public void Dispose() => DetenerTimer();
+}
