@@ -39,3 +39,6 @@ secrets.json
 ## SO
 .DS_Store
 Thumbs.db
+
+## Helpers locales de Claude Code (launch.json apunta a un dotnet de usuario)
+.claude/

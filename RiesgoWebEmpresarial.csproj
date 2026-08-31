@@ -13,8 +13,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="OpenAI" Version="2.1.0" />
-    <PackageReference Include="UglyToad.PdfPig" Version="0.1.9" />
+    <!-- SDK oficial de OpenAI para .NET (Responses API en OpenAI.Responses) -->
+    <PackageReference Include="OpenAI" Version="2.13.0" />
+    <!-- El id del paquete de PdfPig es "PdfPig"; el namespace es UglyToad.PdfPig -->
+    <PackageReference Include="PdfPig" Version="0.1.16" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />
   </ItemGroup>

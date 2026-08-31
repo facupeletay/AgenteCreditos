@@ -1,45 +1,48 @@
-using System.ClientModel;
 using System.Text;
 using System.Text.Json;
+using System.ClientModel;
 using Microsoft.Extensions.Configuration;
+using OpenAI;
 using OpenAI.Responses;
 using RiesgoWebEmpresarial.Models;
 
 namespace RiesgoWebEmpresarial.Services;
+
+#pragma warning disable OPENAI001 // La Responses API del SDK oficial esta marcada como experimental.
 
 /// <summary>
 /// Arma el prompt (instructivo + CUIT + razon social + texto del scorecard),
 /// llama a la Responses API de OpenAI con web search habilitado y pide la
 /// respuesta como JSON estricto, que se deserializa con System.Text.Json.
 ///
-/// NOTA: la Responses API del SDK oficial (paquete OpenAI) esta marcada como
-/// experimental (diagnostico OPENAI001, suprimido en el .csproj). Si actualizas
-/// el paquete y cambia la firma de CreateResponseAsync / ResponseTool, ajusta
-/// unicamente este archivo.
+/// Toda la dependencia del paquete OpenAI (experimental: diagnostico OPENAI001,
+/// suprimido en el .csproj) esta aislada en este archivo. Verificado contra
+/// OpenAI 2.13.0: cliente = ResponsesClient, opciones = CreateResponseOptions,
+/// resultado = ResponseResult.GetOutputText().
 /// </summary>
 public class OpenAiRiesgoService
 {
-    private readonly string _apiKey;
-    private readonly string _model;
+    private readonly IConfiguration _config;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public OpenAiRiesgoService(IConfiguration config)
-    {
-        _apiKey = config["OpenAI:ApiKey"]
-                  ?? throw new InvalidOperationException(
-                      "Falta la API key. Configura 'OpenAI:ApiKey' con User Secrets " +
-                      "(dotnet user-secrets set \"OpenAI:ApiKey\" \"sk-...\") " +
-                      "o la variable de entorno OpenAI__ApiKey.");
+    // La API key NO se valida en el constructor a proposito: el servicio es Singleton
+    // y la app tiene que poder levantar (y navegar Historial / Instructivos) sin key.
+    // Se resuelve y valida recien al correr un analisis.
+    public OpenAiRiesgoService(IConfiguration config) => _config = config;
 
-        if (string.IsNullOrWhiteSpace(_apiKey))
-            throw new InvalidOperationException("'OpenAI:ApiKey' esta vacia. Cargala antes de correr un analisis.");
+    private string ResolverApiKey() =>
+        _config["OpenAI:ApiKey"] is { Length: > 0 } k
+            ? k
+            : throw new InvalidOperationException(
+                "Falta 'OpenAI:ApiKey'. Configurala con User Secrets " +
+                "(dotnet user-secrets set \"OpenAI:ApiKey\" \"sk-...\") o la variable de entorno OpenAI__ApiKey.");
 
-        _model = config["OpenAI:Model"] is { Length: > 0 } m ? m : "gpt-4o-mini";
-    }
+    private string ResolverModelo() =>
+        _config["OpenAI:Model"] is { Length: > 0 } m ? m : "gpt-4o-mini";
 
     public async Task<RiesgoRespuestaDto> AnalizarAsync(
         string instructivoPrompt,
@@ -48,16 +51,24 @@ public class OpenAiRiesgoService
         string textoScorecard,
         CancellationToken ct = default)
     {
-        var client = new OpenAIResponseClient(_model, new ApiKeyCredential(_apiKey));
+        var apiKey = ResolverApiKey();
+        ResponsesClient client = new OpenAIClient(new ApiKeyCredential(apiKey)).GetResponsesClient();
 
         var prompt = ConstruirPrompt(instructivoPrompt, cuit, razonSocial, textoScorecard);
 
-        var options = new ResponseCreationOptions();
+        var options = new CreateResponseOptions
+        {
+            Model = ResolverModelo(),
+            Instructions =
+                "Sos un analista de riesgo reputacional y legal. Respondes SIEMPRE con un unico objeto JSON " +
+                "valido, sin texto ni markdown alrededor. Usa la busqueda web para verificar los hechos."
+        };
+        options.InputItems.Add(ResponseItem.CreateUserMessageItem(prompt));
         options.Tools.Add(ResponseTool.CreateWebSearchTool());
 
-        OpenAIResponse response = await client.CreateResponseAsync(prompt, options, ct);
+        ResponseResult result = await client.CreateResponseAsync(options, ct);
 
-        var raw = response.GetOutputText() ?? string.Empty;
+        var raw = result.GetOutputText() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(raw))
             throw new InvalidOperationException("La Responses API devolvio una respuesta vacia.");
 
@@ -71,8 +82,7 @@ public class OpenAiRiesgoService
         catch (JsonException ex)
         {
             throw new InvalidOperationException(
-                "No se pudo interpretar la respuesta del modelo como JSON. " +
-                "Respuesta cruda:\n" + Recortar(raw, 2000), ex);
+                "No se pudo interpretar la respuesta del modelo como JSON. Respuesta cruda:\n" + Recortar(raw, 2000), ex);
         }
     }
 

@@ -40,28 +40,33 @@ docs/scorecard-ejemplo.pdf       PDF de prueba ya generado
 
 ### Paquetes NuGet
 
-| Paquete | Para qué |
-|---|---|
-| `OpenAI` 2.1.0 | SDK oficial de OpenAI para .NET — Responses API (`OpenAI.Responses`) con web search |
-| `UglyToad.PdfPig` 0.1.9 | extracción de texto del PDF |
-| `Microsoft.Extensions.Configuration` (+ `.UserSecrets`) 8.0.0 | leer `OpenAI:ApiKey` de appsettings / User Secrets / variables de entorno |
+| Paquete | Versión | Para qué |
+|---|---|---|
+| `OpenAI` | 2.13.0 | SDK oficial de OpenAI para .NET — Responses API (`OpenAI.Responses`) con web search |
+| `PdfPig` | 0.1.16 | extracción de texto del PDF (el id del paquete es `PdfPig`; el namespace es `UglyToad.PdfPig`) |
+| `Microsoft.Extensions.Configuration` (+ `.UserSecrets`) | 8.0.0 | leer `OpenAI:ApiKey` de appsettings / User Secrets / variables de entorno |
 
 ---
 
 ## Requisitos
 
-- **.NET SDK 8.0** (esta máquina tiene solo *runtimes*, falta el SDK).
-  Instalalo con:
+Hace falta el **.NET SDK 8.0**. En esta máquina se instaló en el perfil del
+usuario (sin admin) con el script oficial:
 
-  ```bash
-  winget install Microsoft.DotNet.SDK.8
-  ```
+```powershell
+Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$HOME\dotnet-install.ps1"
+& "$HOME\dotnet-install.ps1" -Channel 8.0 -Quality GA -InstallDir "$HOME\.dotnet"
+```
 
-  Cerrá y reabrí la terminal, y verificá:
+Queda en `C:\Users\<usuario>\.dotnet\dotnet.exe`, **fuera del PATH**. Opciones:
 
-  ```bash
-  dotnet --version
-  ```
+- usar la ruta completa: `& "$HOME\.dotnet\dotnet.exe" run`
+- o agregarlo al PATH de la sesión: `$env:Path = "$HOME\.dotnet;$env:Path"` y después `dotnet run`
+- o instalarlo a nivel máquina con `winget install Microsoft.DotNet.SDK.8` (requiere permisos de administrador)
+
+Verificá con `dotnet --version` (debe decir `8.0.x`).
+
+> En los comandos de abajo se asume que `dotnet` está en el PATH. Si no, antepone `& "$HOME\.dotnet\dotnet.exe"`.
 
 ---
 
@@ -104,8 +109,13 @@ dotnet restore
 dotnet run
 ```
 
-Abrí el navegador en la URL que imprime la consola (por defecto
-`https://localhost:7080` o `http://localhost:5080`).
+Abrí el navegador en la URL que imprime la consola (perfil `http` →
+`http://localhost:5080`, perfil `https` → `https://localhost:7080`).
+Para fijar el puerto: `dotnet run --urls http://localhost:5080`.
+
+> La app **levanta sin API key**: podés navegar Analizar / Historial /
+> Instructivos igual. La key sólo se necesita al apretar **Analizar**; si falta,
+> ese análisis queda en estado `Error` con el mensaje explicándolo (no rompe la app).
 
 ---
 
@@ -155,8 +165,20 @@ Abrí el navegador en la URL que imprime la consola (por defecto
 La Responses API del SDK oficial (`OpenAI.Responses`) está marcada como
 **experimental** (diagnóstico `OPENAI001`, ya suprimido en el `.csproj`).
 Toda la integración está aislada en **`Services/OpenAiRiesgoService.cs`**.
-Si cambiás la versión del paquete `OpenAI` y cambia la firma de
-`CreateResponseAsync` o de `ResponseTool.CreateWebSearchTool()`, ajustá solo ese
+
+Verificado contra **`OpenAI` 2.13.0**, la forma de la llamada es:
+
+```csharp
+ResponsesClient client = new OpenAIClient(new ApiKeyCredential(apiKey)).GetResponsesClient();
+var options = new CreateResponseOptions { Model = modelo, Instructions = "..." };
+options.InputItems.Add(ResponseItem.CreateUserMessageItem(prompt));
+options.Tools.Add(ResponseTool.CreateWebSearchTool());
+ResponseResult result = await client.CreateResponseAsync(options, ct);
+string raw = result.GetOutputText();
+```
+
+Si subís la versión del paquete `OpenAI` y cambian estos tipos/firmas
+(`ResponsesClient`, `CreateResponseOptions`, `ResponseResult`), ajustá sólo ese
 archivo. El resto del proyecto no depende del SDK.
 
 ---
