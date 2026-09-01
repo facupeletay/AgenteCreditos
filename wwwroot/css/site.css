@@ -159,3 +159,52 @@ th { color: var(--texto-tenue); font-size: .8rem; text-transform: uppercase; let
     font-size: .9rem;
 }
 #blazor-error-ui .dismiss { cursor: pointer; float: right; }
+
+/* ---- Login ---- */
+.login-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: var(--fondo);
+    position: relative;
+}
+.login-accent {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--acento);
+}
+.login-card {
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+}
+.login-brand {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+.login-sub {
+    margin: .35rem 0 1.5rem;
+    color: var(--texto-tenue);
+    font-size: .9rem;
+}
+.login-btn {
+    width: 100%;
+    margin-top: .5rem;
+    padding: .6rem;
+}
+.login-note {
+    margin-top: 1.25rem;
+    font-size: .75rem;
+    line-height: 1.45;
+    color: var(--texto-tenue);
+}

@@ -1,0 +1,56 @@
+@page "/login"
+@layout LoginLayout
+@inject NavigationManager Nav
+
+<PageTitle>Ingresar — Riesgo Web Empresarial</PageTitle>
+
+<div class="login-card">
+    <div class="login-brand">
+        <span class="brand-dot"></span>
+        Riesgo Web Empresarial
+    </div>
+    <p class="login-sub">Ingresá con tu cuenta corporativa</p>
+
+    <div class="field">
+        <label for="usuario">Usuario</label>
+        <input id="usuario" type="text" autocomplete="username"
+               placeholder="nombre.apellido@empresa.com" @bind="_usuario" @bind:event="oninput" />
+    </div>
+
+    <div class="field">
+        <label for="clave">Contraseña</label>
+        <input id="clave" type="password" autocomplete="current-password" @bind="_clave" @bind:event="oninput" />
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="msg-error">@_error</p>
+    }
+
+    <button class="btn login-btn" @onclick="Ingresar">Ingresar</button>
+
+    <p class="login-note">
+        Diseño de acceso. La autenticación real (SSO corporativo / ASP.NET Core Identity)
+        todavía no está conectada — este botón sólo valida que los campos no estén vacíos
+        y entra a la app. Ver README.
+    </p>
+</div>
+
+@code {
+    private string _usuario = "";
+    private string _clave = "";
+    private string? _error;
+
+    private void Ingresar()
+    {
+        if (string.IsNullOrWhiteSpace(_usuario) || string.IsNullOrWhiteSpace(_clave))
+        {
+            _error = "Completá usuario y contraseña.";
+            return;
+        }
+
+        // TODO: autenticación real. Por ahora entra directo.
+        _error = null;
+        Nav.NavigateTo("/");
+    }
+}

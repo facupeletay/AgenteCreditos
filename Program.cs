@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using RiesgoWebEmpresarial.Data;
 using RiesgoWebEmpresarial.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +18,16 @@ builder.Services.AddSingleton<IInstructivoService, InstructivoService>();
 builder.Services.AddSingleton<PdfExtractorService>();
 builder.Services.AddSingleton<OpenAiRiesgoService>();
 builder.Services.AddSingleton<IAnalisisService, AnalisisService>();
+
+// Base de datos de la web SgrPlus (EF Core / SQL Server).
+// Se registra solo si hay connection string configurada, asi la app sigue
+// levantando sin base (dev sin SQL local, pipeline, etc.). La conexion es lazy:
+// no se abre hasta la primera consulta.
+var sgrPlusCs = builder.Configuration.GetConnectionString("SgrPlusWeb");
+if (!string.IsNullOrWhiteSpace(sgrPlusCs))
+{
+    builder.Services.AddDbContext<SgrPlusDbContext>(opt => opt.UseSqlServer(sgrPlusCs));
+}
 
 var app = builder.Build();
 

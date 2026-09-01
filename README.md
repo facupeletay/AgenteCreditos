@@ -13,14 +13,18 @@ la lógica de negocio está en `Services/` dentro del mismo proyecto.
 
 ```
 RiesgoWebEmpresarial.csproj      Blazor Server, net10.0
-Program.cs                       DI + AddRazorPages + AddServerSideBlazor
-appsettings.json                 OpenAI:ApiKey (vacía) + OpenAI:Model
+Program.cs                       DI + AddRazorPages + AddServerSideBlazor + AddDbContext (condicional)
+appsettings.json                 OpenAI:ApiKey (vacía) + OpenAI:Model + ConnectionStrings:SgrPlusWeb (vacía)
+appsettings.Development.json     placeholder de ConnectionStrings:SgrPlusWeb para probar
 
 Models/
   Instructivo.cs                 prompt versionable (árbol padre -> hijo)
   Analisis.cs                    una corrida (estado, resultado, auditoría)
   Hallazgo.cs                    hallazgo puntual con severidad
   RiesgoRespuestaDto.cs          forma del JSON que devuelve el modelo
+
+Data/
+  SgrPlusDbContext.cs            EF Core / SQL Server: conexión a la base de la web (sin entidades todavía)
 
 Services/
   IInstructivoService / InstructivoService    CRUD + versionado/bifurcación (en memoria, thread-safe)
@@ -32,8 +36,10 @@ Pages/
   Index.razor                    seleccionar instructivo + subir PDF + "Analizar" + polling cada 3 s + veredicto
   Historial.razor                tabla de todos los análisis
   Instructivos.razor             tabla de instructivos + crear / bifurcar
+  Login.razor                    pantalla de acceso (/login) — sólo diseño, sin auth real
 
-Shared/MainLayout.razor          layout simple, acento naranja #e96525
+Shared/MainLayout.razor          layout de la app: nav + acento naranja #e96525
+Shared/LoginLayout.razor         layout del login: card centrada, sin nav
 tools/generar-pdf-ejemplo.ps1    genera un PDF de prueba
 docs/scorecard-ejemplo.pdf       PDF de prueba ya generado
 ```
@@ -44,6 +50,7 @@ docs/scorecard-ejemplo.pdf       PDF de prueba ya generado
 |---|---|---|
 | `OpenAI` | 2.13.0 | SDK oficial de OpenAI para .NET — Responses API (`OpenAI.Responses`) con web search |
 | `PdfPig` | 0.1.16 | extracción de texto del PDF (el id del paquete es `PdfPig`; el namespace es `UglyToad.PdfPig`) |
+| `Microsoft.EntityFrameworkCore.SqlServer` (+ `.Design`) | 10.0.11 | conexión a la base de datos de la web SgrPlus |
 
 `Microsoft.Extensions.Configuration` (+ `.UserSecrets`) — usado para leer
 `OpenAI:ApiKey` / `OpenAI:Model` de appsettings / User Secrets / variables de
@@ -103,6 +110,46 @@ export OpenAI__Model="gpt-4o-mini"
 ```
 
 > El doble guion bajo `__` es el separador de secciones para variables de entorno.
+
+---
+
+## Base de datos (web SgrPlus)
+
+La conexión a la base de la web está **preparada pero todavía sin entidades**:
+
+- **Paquetes**: `Microsoft.EntityFrameworkCore.SqlServer` + `.Design` (EF Core 10).
+- **Contexto**: `Data/SgrPlusDbContext.cs` — vacío, listo para scaffold o para
+  agregar POCOs a mano.
+- **Registro** (`Program.cs`): `AddDbContext<SgrPlusDbContext>(UseSqlServer(...))`
+  **sólo si** hay connection string. La app levanta igual sin base; la conexión es
+  lazy (no se abre hasta la primera consulta).
+- **Connection string**: se lee de `ConnectionStrings:SgrPlusWeb`.
+  - `appsettings.json` → vacía (nunca la real en el repo).
+  - `appsettings.Development.json` → un placeholder a `localhost` / `SgrPlus_Dev`
+    para probar; ajustá `Server`/`Database`.
+  - La real (con credenciales) va por User Secrets:
+    ```bash
+    dotnet user-secrets set "ConnectionStrings:SgrPlusWeb" "Server=...;Database=...;User Id=...;Password=...;TrustServerCertificate=True"
+    ```
+
+Cuando tengas acceso a la base real, generá las entidades:
+
+```bash
+dotnet ef dbcontext scaffold "Name=ConnectionStrings:SgrPlusWeb" \
+  Microsoft.EntityFrameworkCore.SqlServer -o Data/SgrPlus --context SgrPlusDbContext --force
+```
+
+(`dotnet ef` se instala con `dotnet tool install --global dotnet-ef`.)
+
+---
+
+## Login
+
+Hay una pantalla de acceso en **`/login`** (`Pages/Login.razor` + layout propio
+`Shared/LoginLayout.razor`, sin la barra de navegación). Por ahora es **sólo el
+diseño**: valida que usuario y contraseña no estén vacíos y entra a la app. No hay
+autenticación real ni se guardan credenciales — falta enchufar SSO corporativo o
+ASP.NET Core Identity (ver "Qué falta para producción").
 
 ---
 
@@ -193,13 +240,16 @@ Este proyecto es un prototipo funcional. Para llevarlo a producción:
 
 - **Persistencia real**: hoy `InstructivoService` y `AnalisisService` guardan en
   memoria (`ConcurrentDictionary`) y se pierde todo al reiniciar. Migrar a
-  **EF Core + SQL Server**: `DbContext`, migraciones, repos; los servicios pasan
-  de `Singleton` a `Scoped`.
+  **EF Core + SQL Server** (el `SgrPlusDbContext` y los paquetes ya están;
+  faltan las entidades, migraciones y repos); los servicios pasan de `Singleton`
+  a `Scoped`.
 - **Cola de trabajo**: reemplazar `Task.Run` por un `IHostedService` con cola
   (Channel) o un broker (por ejemplo con reintentos, back-pressure, y que el
   trabajo sobreviva a reinicios).
-- **Autenticación / autorización**: hoy el "usuario" es un texto libre. Sumar
-  ASP.NET Core Identity o SSO corporativo, y auditar quién corre cada análisis.
+- **Autenticación / autorización**: la pantalla `/login` es sólo diseño. Enchufar
+  SSO corporativo (OIDC) o ASP.NET Core Identity, proteger las páginas con
+  `[Authorize]` + `AuthorizeRouteView`, y tomar el usuario real (no el texto libre
+  de hoy) para auditar quién corre cada análisis.
 - **Almacenamiento de PDFs**: guardar el archivo original (blob storage) y no
   solo su nombre.
 - **Manejo de secretos**: Key Vault / Secret Manager en vez de variables de entorno.
