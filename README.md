@@ -4,7 +4,7 @@ Agente que analiza **riesgo reputacional y legal** de una empresa a partir de un
 **PDF (scorecard enriquecido)**, usando la **Responses API de OpenAI con web search**,
 con **historial de instructivos versionables** (prompts que se pueden bifurcar).
 
-Todo vive en **un solo proyecto .NET 8 (Blazor Server)**. No hay backend separado:
+Todo vive en **un solo proyecto .NET 10 (Blazor Server)**. No hay backend separado:
 la lógica de negocio está en `Services/` dentro del mismo proyecto.
 
 ---
@@ -12,7 +12,7 @@ la lógica de negocio está en `Services/` dentro del mismo proyecto.
 ## Arquitectura
 
 ```
-RiesgoWebEmpresarial.csproj      Blazor Server, net8.0
+RiesgoWebEmpresarial.csproj      Blazor Server, net10.0
 Program.cs                       DI + AddRazorPages + AddServerSideBlazor
 appsettings.json                 OpenAI:ApiKey (vacía) + OpenAI:Model
 
@@ -44,27 +44,31 @@ docs/scorecard-ejemplo.pdf       PDF de prueba ya generado
 |---|---|---|
 | `OpenAI` | 2.13.0 | SDK oficial de OpenAI para .NET — Responses API (`OpenAI.Responses`) con web search |
 | `PdfPig` | 0.1.16 | extracción de texto del PDF (el id del paquete es `PdfPig`; el namespace es `UglyToad.PdfPig`) |
-| `Microsoft.Extensions.Configuration` (+ `.UserSecrets`) | 8.0.0 | leer `OpenAI:ApiKey` de appsettings / User Secrets / variables de entorno |
+
+`Microsoft.Extensions.Configuration` (+ `.UserSecrets`) — usado para leer
+`OpenAI:ApiKey` / `OpenAI:Model` de appsettings / User Secrets / variables de
+entorno — **no lleva `PackageReference`**: en `net10.0` con el SDK Web ya viene
+en el framework compartido (`Microsoft.AspNetCore.App`).
 
 ---
 
 ## Requisitos
 
-Hace falta el **.NET SDK 8.0**. En esta máquina se instaló en el perfil del
+Hace falta el **.NET SDK 10.0**. En esta máquina se instaló en el perfil del
 usuario (sin admin) con el script oficial:
 
 ```powershell
 Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$HOME\dotnet-install.ps1"
-& "$HOME\dotnet-install.ps1" -Channel 8.0 -Quality GA -InstallDir "$HOME\.dotnet"
+& "$HOME\dotnet-install.ps1" -Channel 10.0 -Quality GA -InstallDir "$HOME\.dotnet"
 ```
 
 Queda en `C:\Users\<usuario>\.dotnet\dotnet.exe`, **fuera del PATH**. Opciones:
 
 - usar la ruta completa: `& "$HOME\.dotnet\dotnet.exe" run`
 - o agregarlo al PATH de la sesión: `$env:Path = "$HOME\.dotnet;$env:Path"` y después `dotnet run`
-- o instalarlo a nivel máquina con `winget install Microsoft.DotNet.SDK.8` (requiere permisos de administrador)
+- o instalarlo a nivel máquina con `winget install Microsoft.DotNet.SDK.10` (requiere permisos de administrador)
 
-Verificá con `dotnet --version` (debe decir `8.0.x`).
+Verificá con `dotnet --version` (debe decir `10.0.x`).
 
 > En los comandos de abajo se asume que `dotnet` está en el PATH. Si no, antepone `& "$HOME\.dotnet\dotnet.exe"`.
 

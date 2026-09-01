@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>RiesgoWebEmpresarial</RootNamespace>
@@ -17,8 +17,11 @@
     <PackageReference Include="OpenAI" Version="2.13.0" />
     <!-- El id del paquete de PdfPig es "PdfPig"; el namespace es UglyToad.PdfPig -->
     <PackageReference Include="PdfPig" Version="0.1.16" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />
+    <!--
+      Microsoft.Extensions.Configuration (+ .UserSecrets) NO se referencian explicitamente:
+      en net10.0 con el SDK Web ya vienen en el framework compartido (Microsoft.AspNetCore.App).
+      El binding de OpenAI:ApiKey / OpenAI:Model (User Secrets + env + appsettings) funciona igual.
+    -->
   </ItemGroup>
 
 </Project>
